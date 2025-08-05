@@ -13,7 +13,7 @@ use super::client::{Client, Pending};
 use super::multipart;
 use super::response::Response;
 use crate::config::{RequestConfig, RequestTimeout};
-#[cfg(feature = "multipart")]
+#[cfg(any(feature = "multipart", feature = "json"))]
 use crate::header::CONTENT_LENGTH;
 use crate::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE};
 use crate::{Method, Url};
@@ -416,11 +416,14 @@ impl RequestBuilder {
         if let Ok(ref mut req) = self.request {
             match serde_urlencoded::to_string(form) {
                 Ok(body) => {
-                    req.headers_mut()
-                        .entry(CONTENT_TYPE)
-                        .or_insert(HeaderValue::from_static(
-                            "application/x-www-form-urlencoded",
-                        ));
+                    if !req.headers().contains_key(CONTENT_TYPE) {
+                        req.headers_mut()
+                            .insert(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"));
+                    }
+                    if !req.headers().contains_key(CONTENT_LENGTH) {
+                        req.headers_mut()
+                            .insert(CONTENT_LENGTH, HeaderValue::from(body.len()));
+                    }
                     *req.body_mut() = Some(body.into());
                 }
                 Err(err) => error = Some(crate::error::builder(err)),
@@ -452,6 +455,10 @@ impl RequestBuilder {
                     if !req.headers().contains_key(CONTENT_TYPE) {
                         req.headers_mut()
                             .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+                    }
+                    if !req.headers().contains_key(CONTENT_LENGTH) {
+                        req.headers_mut()
+                            .insert(CONTENT_LENGTH, HeaderValue::from(body.len()));
                     }
                     *req.body_mut() = Some(body.into());
                 }
